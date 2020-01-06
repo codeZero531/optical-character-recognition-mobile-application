@@ -1,14 +1,11 @@
 package ruwanbandara.photouploadfirebase;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.webkit.MimeTypeMap;
 import android.widget.Button;
@@ -18,8 +15,13 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.storage.FirebaseStorage;
@@ -28,7 +30,6 @@ import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 import com.squareup.picasso.Picasso;
 
-import org.w3c.dom.Text;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -44,6 +45,8 @@ public class MainActivity extends AppCompatActivity {
 
     private StorageReference mStorageRef;
     private DatabaseReference mDatabaseRef;
+
+    private static final String TAG = "MainActivity";
 
 
     @Override
@@ -115,19 +118,84 @@ public class MainActivity extends AppCompatActivity {
         return mime.getExtensionFromMimeType(cR.getType(uri));
     }
     private void uploadFile(){
-        if (mImageUri != null){
-            final StorageReference fileReference = mStorageRef.child(System.currentTimeMillis() + "."+ getFileExtension(mImageUri));
+//        if (mImageUri != null){
+//            final StorageReference fileReference = mStorageRef.child(System.currentTimeMillis() + "."+ getFileExtension(mImageUri));
+//
+//
+//            fileReference.putFile(mImageUri)
+//                    .addOnSuccessListener(new OnSuccessListener <UploadTask.TaskSnapshot>() {
+//
+//                        @Override
+//                        public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+//
+//////                            System.out.println("ssssssssssssssssssssssss");
+////                                file
+//                            Handler handler = new Handler();
+//                            handler.postDelayed(new Runnable() {
+//                                @Override
+//                                public void run() {
+//
+//                                    mProgressBar.setProgress(0);
+//                                }
+//                            }, 500);
+//
+//
+//
+//                            Toast.makeText(MainActivity.this,"Upload Successfull",  Toast.LENGTH_LONG).show();
+//                            Upload upload = new Upload(mEditTextFileName.getText().toString().trim(),
+//                                    taskSnapshot.toString());
+//
+//                            String uploadId = mDatabaseRef.push().getKey();
+//
+//
+//
+//                            mDatabaseRef.child(uploadId).setValue(upload);
+//                        }
+//                    })
+//                    .addOnFailureListener(new OnFailureListener() {
+//                        @Override
+//                        public void onFailure(@NonNull Exception e) {
+//                            Toast.makeText(MainActivity.this,e.getMessage(),Toast.LENGTH_SHORT).show();
+//
+//                        }
+//                    })
+//                    .addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
+//                        @Override
+//                        public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
+//                            double progress = (100.0 * taskSnapshot.getBytesTransferred() / taskSnapshot.getTotalByteCount());
+//                            mProgressBar.setProgress((int) progress);
+//                        }
+//                    });
+//
+//
+//
+//
+//
+//        }else{
+//            Toast.makeText(this,"No File Selected",Toast.LENGTH_SHORT).show();
+//        }
 
+        if (mImageUri != null)
+        {
+            mStorageRef.putFile(mImageUri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>()
+            {
+                @Override
+                public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception
+                {
+                    if (!task.isSuccessful())
+                    {
+                        throw task.getException();
+                    }
+                    return mStorageRef.getDownloadUrl();
+                }
+            }).addOnCompleteListener(new OnCompleteListener<Uri>()
+            {
+                @Override
+                public void onComplete(@NonNull Task<Uri> task)
 
-            fileReference.putFile(mImageUri)
-                    .addOnSuccessListener(new OnSuccessListener <UploadTask.TaskSnapshot>() {
+                {
 
-                        @Override
-                        public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-
-////                            System.out.println("ssssssssssssssssssssssss");
-//                                file
-                            Handler handler = new Handler();
+                    Handler handler = new Handler();
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
@@ -136,41 +204,42 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }, 500);
 
+                    if (task.isSuccessful())
+                    {
+                        Uri downloadUri = task.getResult();
+                        Log.d(TAG, "then: " + downloadUri.toString());
 
 
-                            Toast.makeText(MainActivity.this,"Upload Successfull",  Toast.LENGTH_LONG).show();
-                            Upload upload = new Upload(mEditTextFileName.getText().toString().trim(),
-                                    taskSnapshot.toString());
+                        Upload upload = new Upload(mEditTextFileName.getText().toString().trim(),
+                                downloadUri.toString());
 
-                            String uploadId = mDatabaseRef.push().getKey();
+                        mDatabaseRef.push().setValue(upload);
+                    } else
+                    {
+                        Toast.makeText(MainActivity.this, "upload failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }).addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Toast.makeText(MainActivity.this,e.getMessage(),Toast.LENGTH_SHORT).show();
+                }
 
-
-
-                            mDatabaseRef.child(uploadId).setValue(upload);
-                        }
-                    })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            Toast.makeText(MainActivity.this,e.getMessage(),Toast.LENGTH_SHORT).show();
-
-                        }
-                    })
-                    .addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
+            }).addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
                         @Override
                         public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
                             double progress = (100.0 * taskSnapshot.getBytesTransferred() / taskSnapshot.getTotalByteCount());
                             mProgressBar.setProgress((int) progress);
                         }
-                    });
-
-
-
-
-
-        }else{
+            });
+            }else{
             Toast.makeText(this,"No File Selected",Toast.LENGTH_SHORT).show();
+
+
         }
 
-    }
+        }
+
+
 }
+
